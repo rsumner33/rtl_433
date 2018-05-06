@@ -1,9 +1,13 @@
-# rtl_433 is free software; you can redistribute it and/or modify
+# Copyright 2012 OSMOCOM Project
+#
+# This file is part of rtl-sdr
+#
+# GNU Radio is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 3, or (at your option)
 # any later version.
 #
-# rtl_433 is distributed in the hope that it will be useful,
+# GNU Radio is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -14,127 +18,134 @@
 # Boston, MA 02110-1301, USA.
 
 ########################################################################
-# Build utility
+# Setup library
 ########################################################################
-add_executable(rtl_433
-	baseband.c
-	bitbuffer.c
-	data.c
-	pulse_demod.c
-	pulse_detect.c
-	rtl_433.c
-	optparse.c
-	util.c
-	devices/flex.c
-	devices/acurite.c
-	devices/alecto.c
-	devices/ambient_weather.c
-	devices/blyss.c
-	devices/brennenstuhl_rcs_2044.c
-	devices/calibeur.c
-	devices/cardin.c
-	devices/chuango.c
-	devices/current_cost.c
-	devices/danfoss.c
-	devices/dsc.c
-	devices/ec3k.c
-	devices/efergy_e2_classic.c
-	devices/elv.c
-	devices/emontx.c
-	devices/esperanza_ews.c
-	devices/fineoffset.c
-	devices/fineoffset_wh1080.c
-	devices/ft004b.c
-	devices/ge_coloreffects.c
-	devices/generic_remote.c
-	devices/generic_temperature_sensor.c
-	devices/gt_wt_02.c
-	devices/hideki.c
-	devices/ht680.c
-	devices/inovalley-kw9015b.c
-	devices/intertechno.c
-	devices/kedsum.c
-	devices/lacrosse.c
-	devices/lacrosse_TX141TH_Bv2.c
-	devices/lacrossews.c
-	devices/lightwave_rf.c
-	devices/mebus.c
-	devices/newkaku.c
-	devices/nexus.c
-	devices/oil_watchman.c
-	devices/oregon_scientific.c
-	devices/oregon_scientific_v1.c
-	devices/prologue.c
-	devices/rubicson.c
-	devices/silvercrest.c
-	devices/springfield.c
-	devices/steffen.c
-	devices/tfa_twin_plus_30.3049.c
-	devices/tfa_pool_thermometer.c
-	devices/valeo.c
-	devices/waveman.c
-	devices/wg_pb12v1.c
-	devices/wt450.c
-	devices/x10_rf.c
-	devices/s3318p.c
-	devices/akhan_100F14.c
-	devices/quhwa.c
-	devices/proove.c
-	devices/bresser_3ch.c
-	devices/oregon_scientific_sl109h.c
-	devices/steelmate.c
-	devices/schraeder.c
-	devices/elro_db286a.c
-	devices/efergy_optical.c
-	devices/hondaremote.c
-	devices/new_template.c
-	devices/radiohead_ask.c
-	devices/kerui.c
-	devices/fineoffset_wh1050.c
-	devices/honeywell.c
-	devices/maverick_et73x.c
-	devices/rftech.c
-	devices/lacrosse_tx35.c
-	devices/vaillant_vrt340f.c
-	devices/ibis_beacon.c
-	devices/oil_standard.c
-	devices/tpms_citroen.c
-	devices/thermopro_tp11.c
-	devices/solight_te44.c
-	devices/smoke_gs558.c
-	devices/generic_motion.c
-	devices/tpms_toyota.c
-	devices/tpms_ford.c
-	devices/tpms_renault.c
-	devices/infactory.c
-	devices/fordremote.c
-	devices/philips.c
-	devices/nexa.c
-	devices/thermopro_tp12.c
-	devices/x10_sec.c
-	devices/interlogix.c
-	devices/dish_remote_6_3.c
+add_library(rtlsdr_shared SHARED
+    librtlsdr.c
+    tuner_e4k.c
+    tuner_fc0012.c
+    tuner_fc0013.c
+    tuner_fc2580.c
+    tuner_r820t.c
 )
 
-add_library(data data.c)
-
-target_link_libraries(rtl_433
-	${SDR_LIBRARIES}
-    ${CMAKE_THREAD_LIBS_INIT}
+target_link_libraries(rtlsdr_shared
+    ${LIBUSB_LIBRARIES}
 )
 
+set_target_properties(rtlsdr_shared PROPERTIES DEFINE_SYMBOL "rtlsdr_EXPORTS")
+set_target_properties(rtlsdr_shared PROPERTIES OUTPUT_NAME rtlsdr)
+set_target_properties(rtlsdr_shared PROPERTIES SOVERSION 0 VERSION 0.0.0)
 
-set(INSTALL_TARGETS rtl_433)
-if(UNIX)
-target_link_libraries(rtl_433 m)
+add_library(rtlsdr_static STATIC
+    librtlsdr.c
+    tuner_e4k.c
+    tuner_fc0012.c
+    tuner_fc0013.c
+    tuner_fc2580.c
+    tuner_r820t.c
+)
+
+if(WIN32)
+add_library(libgetopt_static STATIC
+    getopt/getopt.c
+)
 endif()
 
-# Explicitly say that we want C99
-set_property(TARGET rtl_433 PROPERTY C_STANDARD 99)
+target_link_libraries(rtlsdr_static
+    ${LIBUSB_LIBRARIES}
+)
 
+set_property(TARGET rtlsdr_static APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+
+if(NOT WIN32)
+# Force same library filename for static and shared variants of the library
+set_target_properties(rtlsdr_static PROPERTIES OUTPUT_NAME rtlsdr)
+endif()
+
+########################################################################
+# Build utility
+########################################################################
+add_executable(rtl_sdr rtl_sdr.c)
+add_executable(rtl_tcp rtl_tcp.c)
+add_executable(rtl_test rtl_test.c)
+add_executable(rtl_fm rtl_fm.c)
+add_executable(rtl_eeprom rtl_eeprom.c)
+add_executable(rtl_adsb rtl_adsb.c)
+add_executable(rtl_433 
+	rtl_433.c
+	devices/silvercrest.c
+	devices/rubicson.c
+	devices/prologue.c
+	devices/waveman.c
+	devices/steffen.c
+	devices/elv.c
+	devices/lacrosse.c
+	devices/acurite.c
+	devices/oregon_scientific)
+	
+set(INSTALL_TARGETS rtlsdr_shared rtlsdr_static rtl_sdr rtl_tcp rtl_test rtl_fm rtl_eeprom rtl_adsb rtl_433)
+
+target_link_libraries(rtl_sdr rtlsdr_shared
+    ${LIBUSB_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+target_link_libraries(rtl_tcp rtlsdr_shared
+    ${LIBUSB_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+target_link_libraries(rtl_test rtlsdr_shared
+    ${LIBUSB_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+target_link_libraries(rtl_fm rtlsdr_shared
+    ${LIBUSB_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+target_link_libraries(rtl_433 rtlsdr_shared
+    ${LIBUSB_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+target_link_libraries(rtl_eeprom rtlsdr_shared
+    ${LIBUSB_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+target_link_libraries(rtl_adsb rtlsdr_shared
+    ${LIBUSB_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+if(UNIX)
+target_link_libraries(rtl_fm m)
+target_link_libraries(rtl_433 m)
+target_link_libraries(rtl_adsb m)
+if(APPLE)
+    target_link_libraries(rtl_test m)
+else()
+    target_link_libraries(rtl_test m rt)
+endif()
+endif()
+
+if(WIN32)
+target_link_libraries(rtl_sdr libgetopt_static)
+target_link_libraries(rtl_tcp libgetopt_static)
+target_link_libraries(rtl_test libgetopt_static)
+target_link_libraries(rtl_fm libgetopt_static)
+target_link_libraries(rtl_433 libgetopt_static)
+target_link_libraries(rtl_eeprom libgetopt_static)
+target_link_libraries(rtl_adsb libgetopt_static)
+set_property(TARGET rtl_sdr APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+set_property(TARGET rtl_tcp APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+set_property(TARGET rtl_test APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+set_property(TARGET rtl_fm APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+set_property(TARGET rtl_433 APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+set_property(TARGET rtl_eeprom APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+set_property(TARGET rtl_adsb APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+endif()
 ########################################################################
 # Install built library files & utilities
 ########################################################################
 install(TARGETS ${INSTALL_TARGETS}
+    LIBRARY DESTINATION lib${LIB_SUFFIX} # .so/.dylib file
+    ARCHIVE DESTINATION lib${LIB_SUFFIX} # .lib file
     RUNTIME DESTINATION bin              # .dll file
 )

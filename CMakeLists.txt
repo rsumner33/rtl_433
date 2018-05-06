@@ -1,4 +1,13 @@
-# rtl_433 is distributed in the hope that it will be useful,
+# Copyright 2012 OSMOCOM Project
+#
+# This file is part of rtl-sdr
+#
+# GNU Radio is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3, or (at your option)
+# any later version.
+#
+# GNU Radio is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -13,12 +22,7 @@
 # Project setup
 ########################################################################
 cmake_minimum_required(VERSION 2.6)
-# Fix behavior of CMAKE_C_STANDARD when targeting macOS.
-if (POLICY CMP0025)
-    cmake_policy(SET CMP0025 NEW)
-endif ()
-
-project(rtl433 C)
+project(rtlsdr C)
 
 #select the release build type by default to get optimization flags
 if(NOT CMAKE_BUILD_TYPE)
@@ -30,80 +34,47 @@ set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "")
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
 
 ########################################################################
-# Get version info from Git
-########################################################################
-include(GetGitRevisionDescription)
-get_git_head_revision(GIT_REFSPEC GIT_COMMIT)
-if(GIT_COMMIT) # is a git repo
-    # shorten branch spec
-    string(REGEX REPLACE ".*/" "" GIT_BRANCH "${GIT_REFSPEC}")
-    # use lightweight (non-annotated) tags
-    git_describe(GIT_VERSION "--tags")
-    git_timestamp(GIT_TIMESTAMP)
-    message(STATUS "Using Git version tag: ${GIT_VERSION} on ${GIT_BRANCH} at ${GIT_TIMESTAMP} (${GIT_REFSPEC} commit ${GIT_COMMIT})")
-    ADD_DEFINITIONS(-DGIT_VERSION=${GIT_VERSION})
-    ADD_DEFINITIONS(-DGIT_BRANCH=${GIT_BRANCH})
-    ADD_DEFINITIONS(-DGIT_TIMESTAMP=${GIT_TIMESTAMP})
-endif()
-
-########################################################################
 # Compiler specific setup
 ########################################################################
-set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_C_STANDARD 99)
-if (("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" MATCHES "Clang") AND NOT WIN32)
+if(CMAKE_COMPILER_IS_GNUCC AND NOT WIN32)
     ADD_DEFINITIONS(-Wall)
     ADD_DEFINITIONS(-Wextra)
-    ADD_DEFINITIONS(-Wsign-compare)
     ADD_DEFINITIONS(-Wno-unused)
-    ADD_DEFINITIONS(-Wno-unused-parameter)
-    ADD_DEFINITIONS(-Wno-missing-field-initializers)
-    ADD_DEFINITIONS(-std=c99)
-    ADD_DEFINITIONS(-pedantic)
-    # for strdup, setenv
-    ADD_DEFINITIONS(-D_POSIX_C_SOURCE=200809)
+    ADD_DEFINITIONS(-Wsign-compare)
+    ADD_DEFINITIONS(-g3 -O0)
     #http://gcc.gnu.org/wiki/Visibility
     add_definitions(-fvisibility=hidden)
-
-    # CMake Release default for GCC/Clang is "-O3 -DNDEBUG"
-    # set(CMAKE_C_FLAGS_RELEASE -O2)
-    # CMake Debug default for GCC/Clang is "-g -DNDEBUG"
-    # set(CMAKE_C_FLAGS_DEBUG -g3 -O0)
-endif()
-if ("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
-    # make sure we don't accidentally copy more than an int
-    ADD_DEFINITIONS(-Wlarge-by-value-copy=8)
 endif()
 
 ########################################################################
 # Find build dependencies
 ########################################################################
 find_package(PkgConfig)
-find_package(LibRTLSDR)
-list(APPEND SDR_LIBRARIES ${LIBRTLSDR_LIBRARIES})
+find_package(LibUSB)
+set(THREADS_USE_PTHREADS_WIN32 true)
+find_package(Threads)
 
-# cmake -DCMAKE_BUILD_TYPE=Profile ..
-# CPUPROFILE=prof.out ./src/rtl_433 ...
-# pprof -text ./src/rtl_433 prof.out
-if("${CMAKE_BUILD_TYPE}" STREQUAL "Profile")
-    message(STATUS "Build type set to Profile. Linking GPerfTools.")
-    find_package(Gperftools REQUIRED)
-    include_directories(${GPERFTOOLS_INCLUDE_DIR})
-    list(APPEND SDR_LIBRARIES ${GPERFTOOLS_LIBRARIES} -Wl,-no_pie)
-    ADD_DEFINITIONS(-g)
-    ADD_DEFINITIONS(-fno-builtin-malloc)
-    ADD_DEFINITIONS(-fno-builtin-calloc)
-    ADD_DEFINITIONS(-fno-builtin-realloc)
-    ADD_DEFINITIONS(-fno-builtin-free)
+if(NOT LIBUSB_FOUND)
+    message(FATAL_ERROR "LibUSB 1.0 required to compile rtl-sdr")
 endif()
-
+if(NOT THREADS_FOUND)
+    message(FATAL_ERROR "pthreads(-win32) required to compile rtl-sdr")
+endif()
 ########################################################################
 # Setup the include and linker paths
 ########################################################################
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
-    ${LIBRTLSDR_INCLUDE_DIRS}
+    ${LIBUSB_INCLUDE_DIR}
+    ${THREADS_PTHREADS_INCLUDE_DIR}
 )
+
+#link_directories(
+#    ...
+#)
+
+# Set component parameters
+#set(INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include CACHE INTERNAL "" FORCE)
 
 ########################################################################
 # Create uninstall target
@@ -118,47 +89,44 @@ add_custom_target(uninstall
 )
 
 ########################################################################
-# Build documentation with Doxygen
+# Install udev rules
 ########################################################################
-option(BUILD_DOCUMENTATION "Create and install the HTML based API
-documentation (requires Doxygen)" OFF)
-
-find_package(Doxygen)
-if(BUILD_DOCUMENTATION)
-    if(NOT DOXYGEN_FOUND)
-        message(FATAL_ERROR "Doxygen is needed to build the documentation.")
-    endif()
-
-    set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
-    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
-
-    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
-    message("Doxygen build started")
-
-    # note the option ALL which allows to build the docs together with the application
-    add_custom_target(doc_doxygen ALL
-        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        COMMENT "Generating API documentation with Doxygen"
-        VERBATIM)
-    #    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/html DESTINATION share/doc)
-endif()
+option(INSTALL_UDEV_RULES "Install udev rules for RTL-SDR" OFF)
+if (INSTALL_UDEV_RULES)
+    install (
+        FILES rtl-sdr.rules
+        DESTINATION "/etc/udev/rules.d"
+        COMPONENT "udev"
+        )
+else (INSTALL_UDEV_RULES)
+    message (STATUS "Udev rules not being installed, install them with -DINSTALL_UDEV_RULES=ON")
+endif (INSTALL_UDEV_RULES)
 
 ########################################################################
 # Add subdirectories
 ########################################################################
 add_subdirectory(include)
 add_subdirectory(src)
-add_subdirectory(tests)
+
+########################################################################
+# Create Pkg Config File
+########################################################################
+FOREACH(inc ${LIBUSB_INCLUDE_DIR})
+    LIST(APPEND RTLSDR_PC_CFLAGS "-I${inc}")
+ENDFOREACH(inc)
+
+FOREACH(lib ${LIBUSB_LIBRARY_DIRS})
+    LIST(APPEND RTLSDR_PC_LIBS "-L${lib}")
+ENDFOREACH(lib)
 
 # use space-separation format for the pc file
-STRING(REPLACE ";" " " RTL433_PC_CFLAGS "${RTL433_PC_CFLAGS}")
-STRING(REPLACE ";" " " RTL433_PC_LIBS "${RTL433_PC_LIBS}")
+STRING(REPLACE ";" " " RTLSDR_PC_CFLAGS "${RTLSDR_PC_CFLAGS}")
+STRING(REPLACE ";" " " RTLSDR_PC_LIBS "${RTLSDR_PC_LIBS}")
 
 # unset these vars to avoid hard-coded paths to cross environment
 IF(CMAKE_CROSSCOMPILING)
-    UNSET(RTL433_PC_CFLAGS)
-    UNSET(RTL433_PC_LIBS)
+    UNSET(RTLSDR_PC_CFLAGS)
+    UNSET(RTLSDR_PC_LIBS)
 ENDIF(CMAKE_CROSSCOMPILING)
 
 set(prefix ${CMAKE_INSTALL_PREFIX})
@@ -166,7 +134,12 @@ set(exec_prefix \${prefix})
 set(libdir \${exec_prefix}/lib)
 set(includedir \${prefix}/include)
 
+CONFIGURE_FILE(
+    ${CMAKE_CURRENT_SOURCE_DIR}/librtlsdr.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/librtlsdr.pc
+@ONLY)
+
 INSTALL(
-    FILES
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/librtlsdr.pc
     DESTINATION lib/pkgconfig
 )
