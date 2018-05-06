@@ -24,8 +24,8 @@ static int rubicson_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_p
         bb[4][0] == bb[5][0] && bb[5][0] == bb[6][0] && bb[6][0] == bb[7][0] && bb[7][0] == bb[8][0] &&
         bb[8][0] == bb[9][0] && (bb[5][0] != 0 && bb[5][1] != 0 && bb[5][2] != 0)) {
 
-        /* Nible 3,4,5 contains 12 bits of temperature
-         * The temerature is signed and scaled by 10 */
+        /* Nibble 3,4,5 contains 12 bits of temperature
+         * The temperature is signed and scaled by 10 */
         temp = (int16_t)((uint16_t)(bb[0][1] << 12) | (bb[0][2] << 4));
         temp = temp >> 4;
 
