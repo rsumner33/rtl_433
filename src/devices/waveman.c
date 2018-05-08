@@ -1,4 +1,5 @@
 #include "rtl_433.h"
+#include "util.h"
 
 static int waveman_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_per_row[BITBUF_ROWS]) {
     /* Two bits map to 2 states, 0 1 -> 0 and 1 1 -> 1 */
@@ -24,9 +25,7 @@ static int waveman_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_pe
         if (debug_output)
             debug_callback(bb, bits_per_row);
 
-        return 1;
-    }
-    return 0;
+    return 1;
 }
 
 r_device waveman = {
