@@ -1,34 +1,32 @@
 #include "rtl_433.h"
 
-static int steffen_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_per_row[BITBUF_ROWS]) {
+static int steffen_callback(bitbuffer_t *bitbuffer) {
+    bitrow_t *bb = bitbuffer->bb;
 
     if (bb[0][0]==0x00 && ((bb[1][0]&0x07)==0x07) && bb[1][0]==bb[2][0] && bb[2][0]==bb[3][0]) {
 
-        fprintf(stderr, "Remote button event:\n");
-        fprintf(stderr, "model   = Steffan Switch Transmitter, %d bits\n",bits_per_row[1]);
-	fprintf(stderr, "code    = %d%d%d%d%d\n", (bb[1][0]&0x80)>>7, (bb[1][0]&0x40)>>6, (bb[1][0]&0x20)>>5, (bb[1][0]&0x10)>>4, (bb[1][0]&0x08)>>3);
+        fprintf(stdout, "Remote button event:\n");
+        fprintf(stdout, "model   = Steffan Switch Transmitter, %d bits\n",bitbuffer->bits_per_row[1]);
+    fprintf(stdout, "code    = %d%d%d%d%d\n", (bb[1][0]&0x80)>>7, (bb[1][0]&0x40)>>6, (bb[1][0]&0x20)>>5, (bb[1][0]&0x10)>>4, (bb[1][0]&0x08)>>3);
 
-	if ((bb[1][2]&0x0f)==0x0e)
-            fprintf(stderr, "button  = A\n");
+    if ((bb[1][2]&0x0f)==0x0e)
+            fprintf(stdout, "button  = A\n");
         else if ((bb[1][2]&0x0f)==0x0d)
-            fprintf(stderr, "button  = B\n");
+            fprintf(stdout, "button  = B\n");
         else if ((bb[1][2]&0x0f)==0x0b)
-            fprintf(stderr, "button  = C\n");
+            fprintf(stdout, "button  = C\n");
         else if ((bb[1][2]&0x0f)==0x07)
-            fprintf(stderr, "button  = D\n");
+            fprintf(stdout, "button  = D\n");
         else if ((bb[1][2]&0x0f)==0x0f)
-            fprintf(stderr, "button  = ALL\n");
-	else
-	    fprintf(stderr, "button  = unknown\n");
+            fprintf(stdout, "button  = ALL\n");
+    else
+        fprintf(stdout, "button  = unknown\n");
 
-	if ((bb[1][2]&0xf0)==0xf0) {
-            fprintf(stderr, "state   = OFF\n");
-	} else {
-            fprintf(stderr, "state   = ON\n");
+    if ((bb[1][2]&0xf0)==0xf0) {
+            fprintf(stdout, "state   = OFF\n");
+    } else {
+            fprintf(stdout, "state   = ON\n");
         }
-
-        if (debug_output)
-            debug_callback(bb, bits_per_row);
 
         return 1;
     }
@@ -36,11 +34,12 @@ static int steffen_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_pe
 }
 
 r_device steffen = {
-    /* .id             = */ 9,
-    /* .name           = */ "Steffen Switch Transmitter",
-    /* .modulation     = */ OOK_PWM_D,
-    /* .short_limit    = */ 140,
-    /* .long_limit     = */ 270,
-    /* .reset_limit    = */ 1500,
-    /* .json_callback  = */ &steffen_callback,
+    .name           = "Steffen Switch Transmitter",
+    .modulation     = OOK_PULSE_PPM_RAW,
+    .short_limit    = 560,
+    .long_limit     = 1080,
+    .reset_limit    = 6000,
+    .json_callback  = &steffen_callback,
+    .disabled       = 1,
+    .demod_arg      = 0,
 };

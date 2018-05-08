@@ -11,8 +11,9 @@ uint16_t AD_POP(uint8_t bb[BITBUF_COLS], uint8_t bits, uint8_t bit) {
     return val;
 }
 
-static int em1000_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_per_row[BITBUF_ROWS]) {
+static int em1000_callback(bitbuffer_t *bitbuffer) {
     // based on fs20.c
+    bitrow_t *bb = bitbuffer->bb;
     uint8_t dec[10];
     uint8_t bytes=0;
     uint8_t bit=18; // preamble
@@ -20,8 +21,8 @@ static int em1000_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_per
     char* types[] = {"S", "?", "GZ"};
     uint8_t checksum_calculated = 0;
     uint8_t i;
-	uint8_t stopbit;
-	uint8_t checksum_received;
+    uint8_t stopbit;
+    uint8_t checksum_received;
 
     // check and combine the 3 repetitions
     for (i = 0; i < 14; i++) {
@@ -35,7 +36,7 @@ static int em1000_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_per
         dec[i] = AD_POP (bb_p, 8, bit); bit+=8;
         stopbit=AD_POP (bb_p, 1, bit); bit+=1;
         if (!stopbit) {
-//            fprintf(stderr, "!stopbit: %i\n", i);
+//            fprintf(stdout, "!stopbit: %i\n", i);
             return 0;
         }
         checksum_calculated ^= dec[i];
@@ -45,60 +46,63 @@ static int em1000_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_per
     // Read checksum
     checksum_received = AD_POP (bb_p, 8, bit); bit+=8;
     if (checksum_received != checksum_calculated) {
-//        fprintf(stderr, "checksum_received != checksum_calculated: %d %d\n", checksum_received, checksum_calculated);
+//        fprintf(stdout, "checksum_received != checksum_calculated: %d %d\n", checksum_received, checksum_calculated);
         return 0;
     }
 
-//for (i = 0; i < bytes; i++) fprintf(stderr, "%02X ", dec[i]); fprintf(stderr, "\n");
+//for (i = 0; i < bytes; i++) fprintf(stdout, "%02X ", dec[i]); fprintf(stdout, "\n");
 
     // based on 15_CUL_EM.pm
-    fprintf(stderr, "Energy sensor event:\n");
-    fprintf(stderr, "protocol      = ELV EM 1000, %d bits\n",bits_per_row[1]);
-    fprintf(stderr, "type          = EM 1000-%s\n",dec[0]>=1&&dec[0]<=3?types[dec[0]-1]:"?");
-    fprintf(stderr, "code          = %d\n",dec[1]);
-    fprintf(stderr, "seqno         = %d\n",dec[2]);
-    fprintf(stderr, "total cnt     = %d\n",dec[3]|dec[4]<<8);
-    fprintf(stderr, "current cnt   = %d\n",dec[5]|dec[6]<<8);
-    fprintf(stderr, "peak cnt      = %d\n",dec[7]|dec[8]<<8);
+    fprintf(stdout, "Energy sensor event:\n");
+    fprintf(stdout, "protocol      = ELV EM 1000, %d bits\n",bitbuffer->bits_per_row[1]);
+    fprintf(stdout, "type          = EM 1000-%s\n",dec[0]>=1&&dec[0]<=3?types[dec[0]-1]:"?");
+    fprintf(stdout, "code          = %d\n",dec[1]);
+    fprintf(stdout, "seqno         = %d\n",dec[2]);
+    fprintf(stdout, "total cnt     = %d\n",dec[3]|dec[4]<<8);
+    fprintf(stdout, "current cnt   = %d\n",dec[5]|dec[6]<<8);
+    fprintf(stdout, "peak cnt      = %d\n",dec[7]|dec[8]<<8);
 
     return 1;
 }
 
-static int ws2000_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_per_row[BITBUF_ROWS]) {
+static int ws2000_callback(bitbuffer_t *bitbuffer) {
     // based on http://www.dc3yc.privat.t-online.de/protocol.htm
+    bitrow_t *bb = bitbuffer->bb;
     uint8_t dec[13];
     uint8_t nibbles=0;
     uint8_t bit=11; // preamble
     char* types[]={"!AS3", "AS2000/ASH2000/S2000/S2001A/S2001IA/ASH2200/S300IA", "!S2000R", "!S2000W", "S2001I/S2001ID", "!S2500H", "!Pyrano", "!KS200/KS300"};
+    uint8_t length[16]={8, 8, 5, 8, 12, 9, 8, 8, 8};
     uint8_t check_calculated=0, sum_calculated=0;
     uint8_t i;
     uint8_t stopbit;
-	uint8_t sum_received;
+    uint8_t sum_received;
 
     dec[0] = AD_POP (bb[0], 4, bit); bit+=4;
     stopbit= AD_POP (bb[0], 1, bit); bit+=1;
     if (!stopbit) {
-//fprintf(stderr, "!stopbit\n");
+        if(debug_output) fprintf(stdout, "!stopbit\n");
         return 0;
     }
     check_calculated ^= dec[0];
     sum_calculated   += dec[0];
 
     // read nibbles with stopbit ...
-    for (i = 1; i <= (dec[0]==4?12:8); i++) {
+    for (i = 1; i <= length[dec[0]]; i++) {
         dec[i] = AD_POP (bb[0], 4, bit); bit+=4;
         stopbit= AD_POP (bb[0], 1, bit); bit+=1;
         if (!stopbit) {
-//fprintf(stderr, "!stopbit %i\n", i);
+            if(debug_output) fprintf(stdout, "!stopbit %i\n", bit);
             return 0;
         }
         check_calculated ^= dec[i];
         sum_calculated   += dec[i];
         nibbles++;
     }
+    if(debug_output) { for (i = 0; i < nibbles; i++) fprintf(stdout, "%02X ", dec[i]); fprintf(stdout, "\n"); }
 
     if (check_calculated) {
-//fprintf(stderr, "check_calculated (%d) != 0\n", check_calculated);
+        if(debug_output) fprintf(stdout, "check_calculated (%d) != 0\n", check_calculated);
         return 0;
     }
 
@@ -107,41 +111,42 @@ static int ws2000_callback(uint8_t bb[BITBUF_ROWS][BITBUF_COLS],int16_t bits_per
     sum_calculated+=5;
     sum_calculated&=0xF;
     if (sum_received != sum_calculated) {
-//fprintf(stderr, "sum_received (%d) != sum_calculated (%d) ", sum_received, sum_calculated);
+        if(debug_output) fprintf(stdout, "sum_received (%d) != sum_calculated (%d) ", sum_received, sum_calculated);
         return 0;
     }
 
-//for (i = 0; i < nibbles; i++) fprintf(stderr, "%02X ", dec[i]); fprintf(stderr, "\n");
 
-    fprintf(stderr, "Weather station sensor event:\n");
-    fprintf(stderr, "protocol      = ELV WS 2000, %d bits\n",bits_per_row[1]);
-    fprintf(stderr, "type (!=ToDo) = %s\n", dec[0]<=7?types[dec[0]]:"?");
-    fprintf(stderr, "code          = %d\n", dec[1]&7);
-    fprintf(stderr, "temp          = %s%d.%d\n", dec[1]&8?"-":"", dec[4]*10+dec[3], dec[2]);
-    fprintf(stderr, "humidity      = %d.%d\n", dec[7]*10+dec[6], dec[5]);
+    fprintf(stdout, "Weather station sensor event:\n");
+    fprintf(stdout, "protocol      = ELV WS 2000, %d bits\n",bitbuffer->bits_per_row[1]);
+    fprintf(stdout, "type (!=ToDo) = %s\n", dec[0]<=7?types[dec[0]]:"?");
+    fprintf(stdout, "code          = %d\n", dec[1]&7);
+    fprintf(stdout, "temp          = %s%d.%d\n", dec[1]&8?"-":"", dec[4]*10+dec[3], dec[2]);
+    fprintf(stdout, "humidity      = %d.%d\n", dec[7]*10+dec[6], dec[5]);
     if(dec[0]==4) {
-        fprintf(stderr, "pressure      = %d\n", 200+dec[10]*100+dec[9]*10+dec[8]);
+        fprintf(stdout, "pressure      = %d\n", 200+dec[10]*100+dec[9]*10+dec[8]);
     }
 
     return 1;
 }
 
 r_device elv_em1000 = {
-    /* .id             = */ 7,
-    /* .name           = */ "ELV EM 1000",
-    /* .modulation     = */ OOK_PWM_D,
-    /* .short_limit    = */ 750/4,
-    /* .long_limit     = */ 7250/4,
-    /* .reset_limit    = */ 30000/4,
-    /* .json_callback  = */ &em1000_callback,
+    .name           = "ELV EM 1000",
+    .modulation     = OOK_PULSE_PPM_RAW,
+    .short_limit    = 750,
+    .long_limit     = 7250,
+    .reset_limit    = 30000,
+    .json_callback  = &em1000_callback,
+    .disabled       = 1,
+    .demod_arg      = 0,
 };
 
 r_device elv_ws2000 = {
-    /* .id             = */ 8,
-    /* .name           = */ "ELV WS 2000",
-    /* .modulation     = */ OOK_PWM_D,
-    /* .short_limit    = */ (602+(1155-602)/2)/4,
-    /* .long_limit     = */ ((1755635-1655517)/2)/4, // no repetitions
-    /* .reset_limit    = */ ((1755635-1655517)*2)/4,
-    /* .json_callback  = */ &ws2000_callback,
+    .name           = "ELV WS 2000",
+    .modulation     = OOK_PULSE_PWM_RAW,
+    .short_limit    = (854+366)/2,  // 0 => 854us, 1 => 366us according to link in top
+    .long_limit     = 1000, // no repetitions
+    .reset_limit    = 1000, // Longest pause is 854us according to link
+    .json_callback  = &ws2000_callback,
+    .disabled       = 1,
+    .demod_arg      = 0,
 };
