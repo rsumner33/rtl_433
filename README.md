@@ -46,6 +46,7 @@ Running:
 ```
 Usage:	= Tuner options =
 	[-d <RTL-SDR USB device index>] (default: 0)
+    [-i <RTL-SDR USB device serial number (can be set with rtl_eeprom -s)>]
 	[-g <gain>] (default: 0 for auto)
 	[-f <frequency>] [-f...] Receive frequency(s) (default: 433920000 Hz)
 	[-p <ppm_error] Correct rtl-sdr tuner frequency offset error (default: 0)
